@@ -1,6 +1,6 @@
 import './App.css'
 import { useMachine } from '@xstate/react';
-import { createMachine, assign } from 'xstate';
+import { createMachine, assign, EventObject } from 'xstate';
 import { useState } from 'react';
 
 const VALUES = ['one', 'two', 'three'];
@@ -18,7 +18,7 @@ const toggleMachine = createMachine({
     id: 'toggle',
     context: {
         currentPageNumber: 0,
-        selectedValues: undefined,
+        selectedValue: undefined,
         values: [],
         search: '',
     },
@@ -30,7 +30,7 @@ const toggleMachine = createMachine({
                     return fakeAPI({ search: event.data, page: 0 });
                 },
                 onDone: {
-                    target: 'loaded',
+                    target: 'ready',
                     actions: assign({ values: (_: any, event) => event.data, currentPageNumber: 0 }),
                 }
             },
@@ -41,7 +41,7 @@ const toggleMachine = createMachine({
                     return fakeAPI({ search: context.search, page: ++context.currentPageNumber });
                 },
                 onDone: {
-                    target: 'loaded',
+                    target: 'ready',
                     actions: assign({
                         values: (context: any, event) => context.values.concat(event.data),
                         currentPageNumber: (context) => ++context.currentPageNumber,
@@ -49,7 +49,7 @@ const toggleMachine = createMachine({
                 }
             },
         },
-        loaded: {
+        ready: {
             on: {
                 SEARCH: {
                     actions: (context, event) => {
@@ -58,11 +58,16 @@ const toggleMachine = createMachine({
                     target: 'loading'
                 },
                 LOAD_MORE: 'loadingMore',
+                SELECT_VALUE: 'valueSelected',
             },
         },
         valueSelected: {
-            entry: () => {
-                console.log('value selected');
+            // FIXME rtr the typing here is really bad
+            entry: assign({ selectedValue: (_, event: { data: string }) => event.data }),
+            // Transient transition, in this case we do not see the state `valueSelected` in the component
+            // Goes directly to `ready`
+            on: {
+                '': 'ready'
             },
         },
     },
@@ -73,7 +78,6 @@ function App() {
     const [state, send] = useMachine(toggleMachine);
     const isLoading = state.matches('loading');
     const isLoadingMore = state.matches('loadingMore');
-
 
     return (
         <div>
@@ -88,7 +92,9 @@ function App() {
                 <>
                     <ul>
                         {state.context.values.map((value, index) => (
-                            <li key={index}>{value}</li>
+                            <li key={index} style={{ cursor: 'pointer', color: value === state.context.selectedValue ? 'red' : 'black' }} onClick={() => {
+                                send('SELECT_VALUE', { data: value });
+                            }}>{value}</li>
                         ))}
                     </ul>
                     {isLoadingMore ?

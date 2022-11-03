@@ -1,63 +1,67 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
 import './App.css'
 import { useMachine } from '@xstate/react';
-import { createMachine } from 'xstate';
+import { createMachine, assign } from 'xstate';
+
+function fakeAPI() {
+    return new Promise<string[]>(resolve => {
+        setTimeout(() => {
+            resolve(['one', 'two', 'three']);
+        }, 2000);
+    });
+}
 
 const toggleMachine = createMachine({
+    predictableActionArguments: true,
     id: 'toggle',
-    type: 'parallel',
     context: {
-        aValue: 0
+        selectedValues: undefined,
+        values: [],
     },
+    initial: 'loading',
     states: {
-
-        firstState: {
-            initial: 'inactive',
-            states: {
-                inactive: {
-                    on: { TOGGLE: 'active' },
-                    entry: ['increment']
+        loading: {
+            invoke: {
+                src: () => {
+                    console.log('Fetching values');
+                    return fakeAPI();
                 },
-                active: {
-                    on: { TOGGLE: 'inactive' }
+                onDone: {
+                    target: 'loaded',
+                    actions: assign({ values: (_: any, event) => event.data }),
                 }
-            }
+            },
         },
-        secondState: {
-            initial: 'one',
-            states: {
-                one: {
-                    on: { TWO: 'two' }
-                },
-                two: {
-                    on: { ONE: 'one' }
-                }
-            }
-        }
+        loaded: {
+            entry: () => {
+                console.log('initialized');
+            },
+        },
+        valueSelected: {
+            entry: () => {
+                console.log('value selected');
+            },
+        },
     },
-},
-    {
-        actions: {
-            increment: (context, event) => {
-                console.log(event);
-                context.aValue++;
-            }
-        }
-    }
-);
+});
 
 function App() {
     const [state, send] = useMachine(toggleMachine);
+    const isLoading = state.matches('loading');
 
-    console.log(state.context.aValue);
+    console.log('the state', state.context.values);
+
+    if (isLoading) {
+        return (
+            <p>Loading....</p>
+        );
+    }
 
     return (
-        <button onClick={() => send({ type: 'TOGGLE', data: 'hello' })}>
-            {state.value.firstState === 'inactive'
-                ? 'Click to activate'
-                : 'Active! Click to deactivate'}
-        </button>
+        <ul>
+            {state.context.values.map((value, index) => (
+                <li key={index}>{value}</li>
+            ))}
+        </ul>
     );
 }
 

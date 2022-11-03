@@ -1,14 +1,28 @@
 import './App.css'
 import { useMachine } from '@xstate/react';
-import { createMachine, assign, EventObject } from 'xstate';
+import { createMachine, assign } from 'xstate';
 import { useState } from 'react';
 
-const VALUES = ['one', 'two', 'three'];
+type Value = {
+    code: string;
+    label: string;
+}
+
+const VALUES = [
+    { code: 'one', label: 'one' },
+    { code: 'two', label: 'two' },
+    { code: 'three', label: 'three' }
+];
 
 function fakeAPI({ search = '', page = 0 }: { search?: string, page?: number } = {}) {
-    return new Promise<string[]>(resolve => {
+    return new Promise<Value[]>(resolve => {
         setTimeout(() => {
-            resolve(VALUES.map(value => `${search}${value}${page}`));
+            resolve(VALUES.map(value => (
+                {
+                    code: `${search}${value.code}${page}`,
+                    label: `${search}${value.label}${page}`
+                }
+            )));
         }, 2000);
     });
 }
@@ -19,7 +33,7 @@ const toggleMachine = createMachine({
     context: {
         currentPageNumber: 0,
         selectedValue: undefined,
-        values: [],
+        values: [] as Value[],
         search: '',
     },
     initial: 'loading',
@@ -91,10 +105,15 @@ function App() {
                 <p>Loading....</p> :
                 <>
                     <ul>
-                        {state.context.values.map((value, index) => (
-                            <li key={index} style={{ cursor: 'pointer', color: value === state.context.selectedValue ? 'red' : 'black' }} onClick={() => {
-                                send('SELECT_VALUE', { data: value });
-                            }}>{value}</li>
+                        {state.context.values.map((value) => (
+                            <li
+                                key={value.code}
+                                style={{ cursor: 'pointer', color: value.code === state.context.selectedValue ? 'red' : 'black' }}
+                                onClick={() => {
+                                    send('SELECT_VALUE', { data: value.code });
+                                }}>
+                                {value.label}
+                            </li>
                         ))}
                     </ul>
                     {isLoadingMore ?

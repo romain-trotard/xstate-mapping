@@ -1,11 +1,14 @@
 import './App.css'
 import { useMachine } from '@xstate/react';
 import { createMachine, assign } from 'xstate';
+import { useState } from 'react';
 
-function fakeAPI() {
+const VALUES = ['one', 'two', 'three'];
+
+function fakeAPI(search: string = '') {
     return new Promise<string[]>(resolve => {
         setTimeout(() => {
-            resolve(['one', 'two', 'three']);
+            resolve(VALUES.map(value => `${search}${value}`));
         }, 2000);
     });
 }
@@ -21,9 +24,8 @@ const toggleMachine = createMachine({
     states: {
         loading: {
             invoke: {
-                src: () => {
-                    console.log('Fetching values');
-                    return fakeAPI();
+                src: (_, event) => {
+                    return fakeAPI(event.data);
                 },
                 onDone: {
                     target: 'loaded',
@@ -32,8 +34,8 @@ const toggleMachine = createMachine({
             },
         },
         loaded: {
-            entry: () => {
-                console.log('initialized');
+            on: {
+                SEARCH: 'loading',
             },
         },
         valueSelected: {
@@ -45,23 +47,26 @@ const toggleMachine = createMachine({
 });
 
 function App() {
+    const [search, setSearch] = useState('');
     const [state, send] = useMachine(toggleMachine);
     const isLoading = state.matches('loading');
 
-    console.log('the state', state.context.values);
-
-    if (isLoading) {
-        return (
-            <p>Loading....</p>
-        );
-    }
-
     return (
-        <ul>
-            {state.context.values.map((value, index) => (
-                <li key={index}>{value}</li>
-            ))}
-        </ul>
+        <div>
+            <div>
+                <input type="text" value={search} onChange={e => setSearch(e.target.value)} />
+                <button type="button" onClick={() => {
+                    send('SEARCH', { data: search });
+                }}>Submit</button>
+            </div>
+            {isLoading ?
+                <p>Loading....</p> :
+                <ul>
+                    {state.context.values.map((value, index) => (
+                        <li key={index}>{value}</li>
+                    ))}
+                </ul>}
+        </div>
     );
 }
 

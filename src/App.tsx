@@ -27,39 +27,65 @@ function fakeAPI({ search = '', page = 0 }: { search?: string, page?: number } =
     });
 }
 
-const toggleMachine = createMachine({
+type ListContext = {
+    firstList: {
+        currentPageNumber: number;
+        values: Value[];
+        search: string;
+    },
+    selectedValue: undefined | string;
+}
+
+type ListEvent = { type: 'SEARCH'; search: string; }
+    | { type: 'LOAD_MORE' }
+    | { type: 'SELECT_VALUE'; value: string; }
+
+
+const listMachine = createMachine<ListContext, ListEvent>({
     predictableActionArguments: true,
-    id: 'toggle',
     context: {
-        currentPageNumber: 0,
+        firstList: {
+            currentPageNumber: 0,
+            values: [] as Value[],
+            search: '',
+        },
+
         selectedValue: undefined,
-        values: [] as Value[],
-        search: '',
     },
     initial: 'loading',
     states: {
         loading: {
             invoke: {
-                src: (_, event) => {
-                    return fakeAPI({ search: event.data, page: 0 });
+                src: (context) => {
+                    return fakeAPI({ search: context.firstList.search, page: 0 });
                 },
                 onDone: {
                     target: 'ready',
-                    actions: assign({ values: (_: any, event) => event.data, currentPageNumber: 0 }),
+                    actions: assign((_, event) => ({
+                        firstList: {
+                            values: event.data,
+                            currentPageNumber: 0,
+                            search: '',
+                        },
+                        selectedValue: undefined,
+                    })),
                 }
             },
         },
         loadingMore: {
             invoke: {
                 src: (context) => {
-                    return fakeAPI({ search: context.search, page: ++context.currentPageNumber });
+                    return fakeAPI({ search: context.firstList.search, page: ++context.firstList.currentPageNumber });
                 },
                 onDone: {
                     target: 'ready',
-                    actions: assign({
-                        values: (context: any, event) => context.values.concat(event.data),
-                        currentPageNumber: (context) => ++context.currentPageNumber,
-                    }),
+                    // FIXME bad typing, context not infered
+                    actions: assign((context: any, event) => ({
+                        firstList: {
+                            values: context.firstList.values.concat(event.data),
+                            currentPageNumber: ++context.firstList.currentPageNumber,
+                        }
+                    })),
                 }
             },
         },
@@ -67,7 +93,7 @@ const toggleMachine = createMachine({
             on: {
                 SEARCH: {
                     actions: (context, event) => {
-                        context.search = event.data;
+                        context.firstList.search = event.search;
                     },
                     target: 'loading'
                 },
@@ -76,8 +102,14 @@ const toggleMachine = createMachine({
             },
         },
         valueSelected: {
-            // FIXME rtr the typing here is really bad
-            entry: assign({ selectedValue: (_, event: { data: string }) => event.data }),
+            entry: (context, event) => {
+                // Because of TS error https://xstate.js.org/docs/guides/typescript.html#event-types-in-entry-actions
+                if (event.type !== 'SELECT_VALUE') {
+                    return;
+                }
+
+                context.selectedValue = event.value;
+            },
             // Transient transition, in this case we do not see the state `valueSelected` in the component
             // Goes directly to `ready`
             on: {
@@ -89,28 +121,30 @@ const toggleMachine = createMachine({
 
 function App() {
     const [search, setSearch] = useState('');
-    const [state, send] = useMachine(toggleMachine);
+    const [state, send] = useMachine(listMachine);
     const isLoading = state.matches('loading');
     const isLoadingMore = state.matches('loadingMore');
+
+    console.log('hereeee', state.context.firstList.values);
 
     return (
         <div>
             <div>
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)} />
                 <button type="button" onClick={() => {
-                    send('SEARCH', { data: search });
+                    send('SEARCH', { search });
                 }}>Submit</button>
             </div>
             {isLoading ?
                 <p>Loading....</p> :
                 <>
                     <ul>
-                        {state.context.values.map((value) => (
+                        {state.context.firstList.values.map((value) => (
                             <li
                                 key={value.code}
                                 style={{ cursor: 'pointer', color: value.code === state.context.selectedValue ? 'red' : 'black' }}
                                 onClick={() => {
-                                    send('SELECT_VALUE', { data: value.code });
+                                    send('SELECT_VALUE', { value: value.code });
                                 }}>
                                 {value.label}
                             </li>

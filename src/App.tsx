@@ -43,6 +43,7 @@ type ListEvent = { type: 'SEARCH'; search: string; }
 
 const listMachine = createMachine<ListContext, ListEvent>({
     predictableActionArguments: true,
+    type: 'parallel',
     context: {
         firstList: {
             currentPageNumber: 0,
@@ -52,80 +53,94 @@ const listMachine = createMachine<ListContext, ListEvent>({
 
         selectedValue: undefined,
     },
-    initial: 'loading',
     states: {
-        loading: {
-            invoke: {
-                src: (context) => {
-                    return fakeAPI({ search: context.firstList.search, page: 0 });
-                },
-                onDone: {
-                    target: 'ready',
-                    actions: assign((_, event) => ({
-                        firstList: {
-                            values: event.data,
-                            currentPageNumber: 0,
-                            search: '',
+        firstList: {
+            initial: 'loading',
+            states: {
+                loading: {
+                    invoke: {
+                        src: (context) => {
+                            return fakeAPI({ search: context.firstList.search, page: 0 });
                         },
-                        selectedValue: undefined,
-                    })),
-                }
-            },
-        },
-        loadingMore: {
-            invoke: {
-                src: (context) => {
-                    return fakeAPI({ search: context.firstList.search, page: ++context.firstList.currentPageNumber });
-                },
-                onDone: {
-                    target: 'ready',
-                    // FIXME bad typing, context not infered
-                    actions: assign((context: any, event) => ({
-                        firstList: {
-                            values: context.firstList.values.concat(event.data),
-                            currentPageNumber: ++context.firstList.currentPageNumber,
+                        onDone: {
+                            target: 'ready',
+                            actions: assign((_, event) => ({
+                                firstList: {
+                                    values: event.data,
+                                    currentPageNumber: 0,
+                                },
+                            })),
                         }
-                    })),
-                }
-            },
-        },
-        ready: {
-            on: {
-                SEARCH: {
-                    actions: (context, event) => {
-                        context.firstList.search = event.search;
                     },
-                    target: 'loading'
                 },
-                LOAD_MORE: 'loadingMore',
-                SELECT_VALUE: 'valueSelected',
-            },
+                loadingMore: {
+                    invoke: {
+                        src: (context) => {
+                            return fakeAPI({ search: context.firstList.search, page: ++context.firstList.currentPageNumber });
+                        },
+                        onDone: {
+                            target: 'ready',
+                            // FIXME bad typing, context not infered
+                            actions: assign((context: any, event) => ({
+                                firstList: {
+                                    values: context.firstList.values.concat(event.data),
+                                    currentPageNumber: ++context.firstList.currentPageNumber,
+                                }
+                            })),
+                        }
+                    },
+                },
+                ready: {
+                    on: {
+                        SEARCH: {
+                            actions: (context, event) => {
+                                context.firstList.search = event.search;
+                            },
+                            target: 'loading'
+                        },
+                        LOAD_MORE: 'loadingMore',
+                    },
+                },
+            }
         },
-        valueSelected: {
-            entry: (context, event) => {
-                // Because of TS error https://xstate.js.org/docs/guides/typescript.html#event-types-in-entry-actions
-                if (event.type !== 'SELECT_VALUE') {
-                    return;
-                }
+        selection: {
+            initial: 'init',
+            states: {
+                init: {
+                    on: {
+                        SELECT_VALUE: 'valueSelecting',
+                    }
+                },
+                valueSelecting: {
+                    entry: (context, event) => {
+                        // Because of TS error https://xstate.js.org/docs/guides/typescript.html#event-types-in-entry-actions
+                        if (event.type !== 'SELECT_VALUE') {
+                            return;
+                        }
 
-                context.selectedValue = event.value;
-            },
-            // Transient transition, in this case we do not see the state `valueSelected` in the component
-            // Goes directly to `ready`
-            on: {
-                '': 'ready'
-            },
+                        context.selectedValue = event.value;
+                    },
+                    // Transient transition, in this case we do not see the state `valueSelected` in the component
+                    // Goes directly to `ready`
+                    on: {
+                        '': 'valueSelected'
+                    },
+                },
+                valueSelected: {
+                    on: {
+                        SELECT_VALUE: 'valueSelecting',
+                    }
+                },
+            }
         },
-    },
+    }
 });
 
 function App() {
     const [search, setSearch] = useState('');
     const [state, send] = useMachine(listMachine);
-    const isLoading = state.matches('loading');
-    const isLoadingMore = state.matches('loadingMore');
-
-    console.log('hereeee', state.context.firstList.values);
+    const isLoading = state.matches('firstList.loading');
+    const isLoadingMore = state.matches('firstList.loadingMore');
 
     return (
         <div>

@@ -260,6 +260,8 @@ function App() {
     const isLoadingSecondList = state.matches('secondList.loading');
     const isLoadingMoreSecondList = state.matches('secondList.loadingMore');
 
+    const isFirstListValueSelected = state.matches('selection.valueFirstListSelected');
+
 
     useEffect(() => {
         if (message) {
@@ -284,6 +286,7 @@ function App() {
                     selectedValue={state.context.secondListSelectedValue}
                     loadMore={() => send('LOAD_MORE_SECOND_LIST')} onSearch={(search) => send('SEARCH_SECOND_LIST', { search })}
                     items={state.context.secondList.values}
+                    selectable={isFirstListValueSelected}
                     onSelect={(value) => send('SELECT_VALUE_SECOND_LIST', { value: value })} />
             </div>
         </>

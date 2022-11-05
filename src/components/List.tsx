@@ -15,6 +15,7 @@ export default function List({
     onSelect,
     selectedValue,
     loadMore,
+    selectable = true,
 }: {
     onSearch: (search: string) => void;
     loading: boolean;
@@ -23,6 +24,7 @@ export default function List({
     onSelect: (code: string) => void;
     selectedValue?: string;
     loadMore: () => void;
+    selectable?: boolean;
 }) {
     const [search, setSearch] = useState('');
 
@@ -39,7 +41,8 @@ export default function List({
                         {items.map((value) => (
                             <button
                                 key={value.code}
-                                className={clsx(css.item, value.code === selectedValue && css.selectedItem)}
+                                tabIndex={!selectable ? -1 : undefined}
+                                className={clsx(css.item, value.code === selectedValue && css.selectedItem, !selectable && css.notSelectable)}
                                 onClick={() => onSelect(value.code)}>
                                 {value.label}
                             </button>

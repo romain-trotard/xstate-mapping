@@ -21,6 +21,14 @@
     color: red;
 }
 
+.notSelectable:focus, 
+.notSelectable:focus-visible,
+.notSelectable:hover {
+    outline: none;
+    box-shadow: none;
+    border-color: transparent;
+}
+
 .search {
     display: flex;
     flex-direction: row;

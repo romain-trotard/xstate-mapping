@@ -1,7 +1,7 @@
 import './App.css'
 import { useMachine } from '@xstate/react';
 import { createMachine, assign } from 'xstate';
-import { useState } from 'react';
+import List from './components/List';
 
 type Value = {
     code: string;
@@ -68,6 +68,7 @@ const listMachine = createMachine<ListContext, ListEvent>({
                                 firstList: {
                                     values: event.data,
                                     currentPageNumber: 0,
+                                    search: '',
                                 },
                             })),
                         }
@@ -137,43 +138,17 @@ const listMachine = createMachine<ListContext, ListEvent>({
 });
 
 function App() {
-    const [search, setSearch] = useState('');
     const [state, send] = useMachine(listMachine);
     const isLoading = state.matches('firstList.loading');
     const isLoadingMore = state.matches('firstList.loadingMore');
 
     return (
-        <div>
-            <div>
-                <input type="text" value={search} onChange={e => setSearch(e.target.value)} />
-                <button type="button" onClick={() => {
-                    send('SEARCH', { search });
-                }}>Submit</button>
-            </div>
-            {isLoading ?
-                <p>Loading....</p> :
-                <>
-                    <ul>
-                        {state.context.firstList.values.map((value) => (
-                            <li
-                                key={value.code}
-                                style={{ cursor: 'pointer', color: value.code === state.context.selectedValue ? 'red' : 'black' }}
-                                onClick={() => {
-                                    send('SELECT_VALUE', { value: value.code });
-                                }}>
-                                {value.label}
-                            </li>
-                        ))}
-                    </ul>
-                    {isLoadingMore ?
-                        <p>Loading more...</p> :
-                        <button type="button" onClick={() => {
-                            send('LOAD_MORE');
-                        }}>Load more</button>
-                    }
-                </>
-            }
-        </div>
+        <List loadingMore={isLoadingMore}
+            loading={isLoading}
+            selectedValue={state.context.selectedValue}
+            loadMore={() => send('LOAD_MORE')} onSearch={(search) => send('SEARCH', { search })}
+            items={state.context.firstList.values}
+            onSelect={(value) => send('SELECT_VALUE', { value: value })} />
     );
 }
 

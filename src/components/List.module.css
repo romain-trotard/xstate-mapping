@@ -1,0 +1,13 @@
+.list {
+    display: flex;
+    flex-direction: column;
+}
+
+.item {
+    padding: 5px 10px;
+}
+
+.selectedItem {
+    color: red;
+}
+

@@ -1,4 +1,5 @@
 import './App.css'
+import css from './App.module.css';
 import { useMachine } from '@xstate/react';
 import { createMachine, assign } from 'xstate';
 import List from './components/List';
@@ -27,18 +28,37 @@ function fakeAPI({ search = '', page = 0 }: { search?: string, page?: number } =
     });
 }
 
+function mapBothValues(firstValue: string, secondValue: string) {
+    return new Promise<string>(resolve => {
+        setTimeout(() => {
+            resolve(`Values "${firstValue} and ${secondValue} are mapped`);
+        }, 500);
+
+    });
+}
+
 type ListContext = {
     firstList: {
         currentPageNumber: number;
         values: Value[];
         search: string;
     },
-    selectedValue: undefined | string;
+    secondList: {
+        currentPageNumber: number;
+        values: Value[];
+        search: string;
+    },
+    firstListSelectedValue: undefined | string;
+    secondListSelectedValue: undefined | string;
 }
 
-type ListEvent = { type: 'SEARCH'; search: string; }
-    | { type: 'LOAD_MORE' }
-    | { type: 'SELECT_VALUE'; value: string; }
+type ListEvent = { type: 'SEARCH_FIRST_LIST'; search: string; }
+    | { type: 'LOAD_MORE_FIRST_LIST' }
+    | { type: 'SELECT_VALUE_FIRST_LIST'; value: string; }
+    | { type: 'SEARCH_SECOND_LIST'; search: string; }
+    | { type: 'LOAD_MORE_SECOND_LIST' }
+    | { type: 'SELECT_VALUE_SECOND_LIST'; value: string; }
+
 
 
 const listMachine = createMachine<ListContext, ListEvent>({
@@ -50,8 +70,14 @@ const listMachine = createMachine<ListContext, ListEvent>({
             values: [] as Value[],
             search: '',
         },
+        secondList: {
+            currentPageNumber: 0,
+            values: [] as Value[],
+            search: '',
+        },
 
-        selectedValue: undefined,
+        firstListSelectedValue: undefined,
+        secondListSelectedValue: undefined,
     },
     states: {
         firstList: {
@@ -93,13 +119,63 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 },
                 ready: {
                     on: {
-                        SEARCH: {
+                        SEARCH_FIRST_LIST: {
                             actions: (context, event) => {
                                 context.firstList.search = event.search;
                             },
                             target: 'loading'
                         },
-                        LOAD_MORE: 'loadingMore',
+                        LOAD_MORE_FIRST_LIST: 'loadingMore',
+                    },
+                },
+            }
+        },
+        secondList: {
+            initial: 'loading',
+            states: {
+                loading: {
+                    invoke: {
+                        src: (context) => {
+                            return fakeAPI({ search: context.secondList.search, page: 0 });
+                        },
+                        onDone: {
+                            target: 'ready',
+                            actions: assign((_, event) => ({
+                                secondList: {
+                                    values: event.data,
+                                    currentPageNumber: 0,
+                                    search: '',
+                                },
+                            })),
+                        }
+                    },
+                },
+                loadingMore: {
+                    invoke: {
+                        src: (context) => {
+                            return fakeAPI({ search: context.secondList.search, page: ++context.secondList.currentPageNumber });
+                        },
+                        onDone: {
+                            target: 'ready',
+                            // FIXME bad typing, context not infered
+                            actions: assign((context: any, event) => ({
+                                secondList: {
+                                    values: context.secondList.values.concat(event.data),
+                                    currentPageNumber: ++context.secondList.currentPageNumber,
+                                }
+                            })),
+                        }
+                    },
+                },
+                ready: {
+                    on: {
+                        SEARCH_SECOND_LIST: {
+                            actions: (context, event) => {
+                                context.secondList.search = event.search;
+                            },
+                            target: 'loading'
+                        },
+                        LOAD_MORE_SECOND_LIST: 'loadingMore',
                     },
                 },
             }
@@ -109,28 +185,55 @@ const listMachine = createMachine<ListContext, ListEvent>({
             states: {
                 init: {
                     on: {
-                        SELECT_VALUE: 'valueSelecting',
+                        SELECT_VALUE_FIRST_LIST: 'selectingValueFirstList',
                     }
                 },
-                valueSelecting: {
+                selectingValueFirstList: {
                     entry: (context, event) => {
                         // Because of TS error https://xstate.js.org/docs/guides/typescript.html#event-types-in-entry-actions
-                        if (event.type !== 'SELECT_VALUE') {
+                        if (event.type !== 'SELECT_VALUE_FIRST_LIST') {
                             return;
                         }
 
-                        context.selectedValue = event.value;
+                        context.firstListSelectedValue = event.value;
                     },
-                    // Transient transition, in this case we do not see the state `valueSelected` in the component
+                    // Transient transition, in this case we do not see the state `valueFirstListSelected` in the component
                     // Goes directly to `ready`
                     on: {
-                        '': 'valueSelected'
+                        '': 'valueFirstListSelected'
                     },
                 },
-                valueSelected: {
+                valueFirstListSelected: {
                     on: {
-                        SELECT_VALUE: 'valueSelecting',
+                        SELECT_VALUE_FIRST_LIST: 'selectingValueFirstList',
+                        SELECT_VALUE_SECOND_LIST: 'selectingValueSecondList',
                     }
+                },
+                selectingValueSecondList: {
+                    entry: (context, event) => {
+                        // Because of TS error https://xstate.js.org/docs/guides/typescript.html#event-types-in-entry-actions
+                        if (event.type !== 'SELECT_VALUE_SECOND_LIST') {
+                            return;
+                        }
+
+                        context.secondListSelectedValue = event.value;
+                    },
+                    invoke: {
+                        src: (context) => {
+                            // Trust me values are not undefined
+                            // Should I do a guard later? maybe
+                            return mapBothValues(context.firstListSelectedValue!, context.secondListSelectedValue!);
+                        },
+                        onDone: {
+                            target: 'init',
+                            // FIXME bad typing, context not infered
+                            actions: assign((context, event) => ({
+                                // Next I would probably want to select automagically the next value for this one
+                                firstListSelectedValue: undefined,
+                                secondListSelectedValue: undefined,
+                            })),
+                        }
+                    },
                 },
             }
         },
@@ -139,16 +242,30 @@ const listMachine = createMachine<ListContext, ListEvent>({
 
 function App() {
     const [state, send] = useMachine(listMachine);
-    const isLoading = state.matches('firstList.loading');
-    const isLoadingMore = state.matches('firstList.loadingMore');
+
+    const isLoadingFirstList = state.matches('firstList.loading');
+    const isLoadingMoreFirstList = state.matches('firstList.loadingMore');
+
+    const isLoadingSecondList = state.matches('secondList.loading');
+    const isLoadingMoreSecondList = state.matches('secondList.loadingMore');
+
+    console.log(state.context.firstListSelectedValue)
 
     return (
-        <List loadingMore={isLoadingMore}
-            loading={isLoading}
-            selectedValue={state.context.selectedValue}
-            loadMore={() => send('LOAD_MORE')} onSearch={(search) => send('SEARCH', { search })}
-            items={state.context.firstList.values}
-            onSelect={(value) => send('SELECT_VALUE', { value: value })} />
+        <div className={css.listsContainer}>
+            <List loadingMore={isLoadingMoreFirstList}
+                loading={isLoadingFirstList}
+                selectedValue={state.context.firstListSelectedValue}
+                loadMore={() => send('LOAD_MORE_FIRST_LIST')} onSearch={(search) => send('SEARCH_FIRST_LIST', { search })}
+                items={state.context.firstList.values}
+                onSelect={(value) => send('SELECT_VALUE_FIRST_LIST', { value: value })} />
+            <List loadingMore={isLoadingMoreSecondList}
+                loading={isLoadingSecondList}
+                selectedValue={state.context.secondListSelectedValue}
+                loadMore={() => send('LOAD_MORE_SECOND_LIST')} onSearch={(search) => send('SEARCH_SECOND_LIST', { search })}
+                items={state.context.secondList.values}
+                onSelect={(value) => send('SELECT_VALUE_SECOND_LIST', { value: value })} />
+        </div>
     );
 }
 

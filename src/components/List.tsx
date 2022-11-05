@@ -27,7 +27,7 @@ export default function List({
     const [search, setSearch] = useState('');
 
     return (
-        <div>
+        <div className={css.listContainer}>
             <div className={css.search}>
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)} />
                 <button type="button" onClick={() => onSearch(search)}>Submit</button>
@@ -47,7 +47,7 @@ export default function List({
                     </div>
                     {loadingMore ?
                         <p>Loading more...</p> :
-                        <button type="button" onClick={loadMore}>Load more</button>
+                        <button className={css.loadMore} type="button" onClick={loadMore}>Load more</button>
                     }
                 </>
             }

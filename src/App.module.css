@@ -4,3 +4,10 @@
     gap: 50px;
 }
 
+.alert {
+    border: 1px solid green;
+    border-radius: 5px;
+    padding: 10px 20px;
+    margin-bottom: 20px;
+}
+

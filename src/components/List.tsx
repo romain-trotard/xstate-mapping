@@ -28,7 +28,7 @@ export default function List({
 
     return (
         <div>
-            <div>
+            <div className={css.search}>
                 <input type="text" value={search} onChange={e => setSearch(e.target.value)} />
                 <button type="button" onClick={() => onSearch(search)}>Submit</button>
             </div>

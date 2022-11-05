@@ -13,3 +13,14 @@
     color: red;
 }
 
+.search {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 15px;
+}
+
+.search input {
+    height: 20px;
+}
+

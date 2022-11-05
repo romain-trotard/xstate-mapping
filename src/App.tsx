@@ -3,6 +3,7 @@ import css from './App.module.css';
 import { useMachine } from '@xstate/react';
 import { createMachine, assign } from 'xstate';
 import List from './components/List';
+import { useEffect, useState } from 'react';
 
 type Value = {
     code: string;
@@ -31,9 +32,8 @@ function fakeAPI({ search = '', page = 0 }: { search?: string, page?: number } =
 function mapBothValues(firstValue: string, secondValue: string) {
     return new Promise<string>(resolve => {
         setTimeout(() => {
-            resolve(`Values "${firstValue} and ${secondValue} are mapped`);
+            resolve(`Values "${firstValue}" and "${secondValue}" have been mapped`);
         }, 500);
-
     });
 }
 
@@ -227,21 +227,32 @@ const listMachine = createMachine<ListContext, ListEvent>({
                         onDone: {
                             target: 'init',
                             // FIXME bad typing, context not infered
-                            actions: assign((context, event) => ({
-                                // Next I would probably want to select automagically the next value for this one
-                                firstListSelectedValue: undefined,
-                                secondListSelectedValue: undefined,
-                            })),
+                            actions: [
+                                'displayMessage',
+                                (context) => {
+                                    // Next I would probably want to select automagically the next value for this one
+                                    context.firstListSelectedValue = undefined;
+                                    context.secondListSelectedValue = undefined;
+                                }
+                            ],
                         }
                     },
                 },
             }
         },
-    }
+    },
 });
 
 function App() {
-    const [state, send] = useMachine(listMachine);
+    const [message, setMessage] = useState<string | null>(null);
+    const [state, send] = useMachine(listMachine, {
+        actions: {
+            displayMessage: (_, event) => {
+                // @ts-ignore for now let's do like this then improve the TS
+                setMessage(event.data);
+            }
+        }
+    });
 
     const isLoadingFirstList = state.matches('firstList.loading');
     const isLoadingMoreFirstList = state.matches('firstList.loadingMore');
@@ -249,23 +260,33 @@ function App() {
     const isLoadingSecondList = state.matches('secondList.loading');
     const isLoadingMoreSecondList = state.matches('secondList.loadingMore');
 
-    console.log(state.context.firstListSelectedValue)
+
+    useEffect(() => {
+        if (message) {
+            const timeout = setTimeout(() => setMessage(null), 2000);
+
+            return () => clearTimeout(timeout);
+        }
+    }, [message]);
 
     return (
-        <div className={css.listsContainer}>
-            <List loadingMore={isLoadingMoreFirstList}
-                loading={isLoadingFirstList}
-                selectedValue={state.context.firstListSelectedValue}
-                loadMore={() => send('LOAD_MORE_FIRST_LIST')} onSearch={(search) => send('SEARCH_FIRST_LIST', { search })}
-                items={state.context.firstList.values}
-                onSelect={(value) => send('SELECT_VALUE_FIRST_LIST', { value: value })} />
-            <List loadingMore={isLoadingMoreSecondList}
-                loading={isLoadingSecondList}
-                selectedValue={state.context.secondListSelectedValue}
-                loadMore={() => send('LOAD_MORE_SECOND_LIST')} onSearch={(search) => send('SEARCH_SECOND_LIST', { search })}
-                items={state.context.secondList.values}
-                onSelect={(value) => send('SELECT_VALUE_SECOND_LIST', { value: value })} />
-        </div>
+        <>
+            {message && <div className={css.alert}>{message}</div>}
+            <div className={css.listsContainer}>
+                <List loadingMore={isLoadingMoreFirstList}
+                    loading={isLoadingFirstList}
+                    selectedValue={state.context.firstListSelectedValue}
+                    loadMore={() => send('LOAD_MORE_FIRST_LIST')} onSearch={(search) => send('SEARCH_FIRST_LIST', { search })}
+                    items={state.context.firstList.values}
+                    onSelect={(value) => send('SELECT_VALUE_FIRST_LIST', { value: value })} />
+                <List loadingMore={isLoadingMoreSecondList}
+                    loading={isLoadingSecondList}
+                    selectedValue={state.context.secondListSelectedValue}
+                    loadMore={() => send('LOAD_MORE_SECOND_LIST')} onSearch={(search) => send('SEARCH_SECOND_LIST', { search })}
+                    items={state.context.secondList.values}
+                    onSelect={(value) => send('SELECT_VALUE_SECOND_LIST', { value: value })} />
+            </div>
+        </>
     );
 }
 

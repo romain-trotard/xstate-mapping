@@ -16,6 +16,11 @@ const VALUES = [
     { code: 'three', label: 'three' }
 ];
 
+async function fetchCategories({ page = 0 }: { page: number }) {
+    const call = await fetch('http://localhost:3000/categories?' + new URLSearchParams({ pageNumber: page.toString() }));
+    return call.json();
+}
+
 function fakeAPI({ search = '', page = 0 }: { search?: string, page?: number } = {}) {
     return new Promise<Value[]>(resolve => {
         setTimeout(() => {
@@ -44,7 +49,7 @@ type ListContext = {
         search: string;
     },
     secondList: {
-        currentPageNumber: number;
+        nextPage: number;
         values: Value[];
         search: string;
     },
@@ -71,7 +76,7 @@ const listMachine = createMachine<ListContext, ListEvent>({
             search: '',
         },
         secondList: {
-            currentPageNumber: 0,
+            nextPage: 0,
             values: [] as Value[],
             search: '',
         },
@@ -136,14 +141,15 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 loading: {
                     invoke: {
                         src: (context) => {
-                            return fakeAPI({ search: context.secondList.search, page: 0 });
+                            // return fakeAPI({ search: context.secondList.search, page: 0 });
+                            return fetchCategories({ page: 0 });
                         },
                         onDone: {
                             target: 'ready',
                             actions: assign((_, event) => ({
                                 secondList: {
-                                    values: event.data,
-                                    currentPageNumber: 0,
+                                    values: event.data.values,
+                                    nextPage: event.data.nextPage,
                                     search: '',
                                 },
                             })),
@@ -153,17 +159,20 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 loadingMore: {
                     invoke: {
                         src: (context) => {
-                            return fakeAPI({ search: context.secondList.search, page: ++context.secondList.currentPageNumber });
+                            // return fakeAPI({ search: context.secondList.search, page: ++context.secondList.currentPageNumber });
+                            return fetchCategories({ page: context.secondList.nextPage });
                         },
                         onDone: {
                             target: 'ready',
                             // FIXME bad typing, context not infered
                             actions: assign((context: any, event) => ({
                                 secondList: {
-                                    values: context.secondList.values.concat(event.data),
+                                    values: context.secondList.values.concat(event.data.values),
                                     currentPageNumber: ++context.secondList.currentPageNumber,
+                                    nextPage: event.data.nextPage,
                                 }
-                            })),
+                            })
+                            ),
                         }
                     },
                 },
@@ -259,6 +268,7 @@ function App() {
 
     const isLoadingSecondList = state.matches('secondList.loading');
     const isLoadingMoreSecondList = state.matches('secondList.loadingMore');
+    const hasNextPageSecondList = state.context.secondList.nextPage !== undefined;
 
     const isFirstListValueSelected = state.matches('selection.valueFirstListSelected');
 
@@ -280,6 +290,7 @@ function App() {
                     selectedValue={state.context.firstListSelectedValue}
                     loadMore={() => send('LOAD_MORE_FIRST_LIST')} onSearch={(search) => send('SEARCH_FIRST_LIST', { search })}
                     items={state.context.firstList.values}
+                    hasNextPage={false}
                     onSelect={(value) => send('SELECT_VALUE_FIRST_LIST', { value: value })} />
                 <List loadingMore={isLoadingMoreSecondList}
                     loading={isLoadingSecondList}
@@ -287,6 +298,7 @@ function App() {
                     loadMore={() => send('LOAD_MORE_SECOND_LIST')} onSearch={(search) => send('SEARCH_SECOND_LIST', { search })}
                     items={state.context.secondList.values}
                     selectable={isFirstListValueSelected}
+                    hasNextPage={hasNextPageSecondList}
                     onSelect={(value) => send('SELECT_VALUE_SECOND_LIST', { value: value })} />
             </div>
         </>

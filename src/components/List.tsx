@@ -16,6 +16,7 @@ export default function List({
     selectedValue,
     loadMore,
     selectable = true,
+    hasNextPage,
 }: {
     onSearch: (search: string) => void;
     loading: boolean;
@@ -25,6 +26,7 @@ export default function List({
     selectedValue?: string;
     loadMore: () => void;
     selectable?: boolean;
+    hasNextPage: boolean;
 }) {
     const [search, setSearch] = useState('');
 
@@ -48,10 +50,8 @@ export default function List({
                             </button>
                         ))}
                     </div>
-                    {loadingMore ?
-                        <p>Loading more...</p> :
-                        <button className={css.loadMore} type="button" onClick={loadMore}>Load more</button>
-                    }
+                    {hasNextPage && loadingMore && (<p>Loading more...</p>)}
+                    {hasNextPage && !loadingMore && (<button className={css.loadMore} type="button" onClick={loadMore}>Load more</button>)}
                 </>
             }
         </div>

@@ -22,7 +22,7 @@ export default function List({
     loading: boolean;
     loadingMore: boolean;
     items: Item[];
-    onSelect: (code: string) => void;
+    onSelect: (code: string | undefined) => void;
     selectedValue?: string;
     loadMore: () => void;
     selectable?: boolean;
@@ -45,7 +45,7 @@ export default function List({
                                 key={value.code}
                                 tabIndex={!selectable ? -1 : undefined}
                                 className={clsx(css.item, value.code === selectedValue && css.selectedItem, !selectable && css.notSelectable)}
-                                onClick={() => onSelect(value.code)}>
+                                onClick={() => onSelect(value.code === selectedValue ? undefined : value.code)}>
                                 {value.label}
                             </button>
                         ))}

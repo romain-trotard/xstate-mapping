@@ -48,6 +48,7 @@ type ListEvent = { type: 'SEARCH_FIRST_LIST'; search: string; }
     | { type: 'SELECT_VALUE_FIRST_LIST'; value: string; }
     | { type: 'SEARCH_SECOND_LIST'; search: string; }
     | { type: 'LOAD_MORE_SECOND_LIST' }
+    | { type: 'UNSELECT_FIRST_VALUE' }
     | { type: 'SELECT_VALUE_SECOND_LIST'; value: string; }
 
 
@@ -177,12 +178,16 @@ const listMachine = createMachine<ListContext, ListEvent>({
             }
         },
         selection: {
-            initial: 'init',
+            initial: 'firstValueNotSelected',
             states: {
-                init: {
+                firstValueNotSelected: {
+                    entry: (context) => {
+                        context.firstListSelectedValue = undefined;
+                        context.secondListSelectedValue = undefined;
+                    },
                     on: {
                         SELECT_VALUE_FIRST_LIST: 'selectingValueFirstList',
-                    }
+                    },
                 },
                 selectingValueFirstList: {
                     entry: (context, event) => {
@@ -203,6 +208,8 @@ const listMachine = createMachine<ListContext, ListEvent>({
                     on: {
                         SELECT_VALUE_FIRST_LIST: 'selectingValueFirstList',
                         SELECT_VALUE_SECOND_LIST: 'selectingValueSecondList',
+                        UNSELECT_FIRST_VALUE: 'firstValueNotSelected',
+
                     }
                 },
                 selectingValueSecondList: {
@@ -221,12 +228,13 @@ const listMachine = createMachine<ListContext, ListEvent>({
                             return mapBothValues(context.firstListSelectedValue!, context.secondListSelectedValue!);
                         },
                         onDone: {
-                            target: 'init',
+                            target: 'firstValueNotSelected',
                             // FIXME bad typing, context not infered
                             actions: [
                                 'displayMessage',
                                 (context) => {
                                     // Next I would probably want to select automagically the next value for this one
+                                    // For now deduplication of code but should differ later
                                     context.firstListSelectedValue = undefined;
                                     context.secondListSelectedValue = undefined;
                                 }
@@ -279,7 +287,13 @@ function App() {
                     loadMore={() => send('LOAD_MORE_FIRST_LIST')} onSearch={(search) => send('SEARCH_FIRST_LIST', { search })}
                     items={state.context.firstList.values}
                     hasNextPage={hasNextPageFirstList}
-                    onSelect={(value) => send('SELECT_VALUE_FIRST_LIST', { value: value })} />
+                    onSelect={(value) => {
+                        if (value === undefined) {
+                            send('UNSELECT_FIRST_VALUE');
+                        } else {
+                            send('SELECT_VALUE_FIRST_LIST', { value: value });
+                        }
+                    }} />
                 <List loadingMore={isLoadingMoreSecondList}
                     loading={isLoadingSecondList}
                     selectedValue={state.context.secondListSelectedValue}

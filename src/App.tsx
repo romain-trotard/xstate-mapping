@@ -96,6 +96,9 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 loadingMore: {
                     invoke: {
                         src: (context) => {
+                            // I guess I could use the `loading` state and just set the `search` before here
+                            // And make a guard not to do `loadMore` if no more `nextPage`
+
                             // Then should handle search too
                             return fetchArticles({ page: context.firstList.nextPage });
                         },

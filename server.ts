@@ -1,6 +1,7 @@
 import Fastify from 'fastify';
 import FastifyCors from '@fastify/cors';
 import categories from './categories.js';
+import articles from './articles.js';
 
 const PAGE_LIMIT = 3;
 
@@ -17,6 +18,12 @@ function getPage({ values, pageNumber = 0 }: { pageNumber: number, values: unkno
 const server = Fastify();
 
 server.register(FastifyCors);
+
+server.get('/articles', (request, reply) => {
+    const pageNumber = parseInt((request.query as { pageNumber: string }).pageNumber);
+
+    reply.send(getPage({ values: articles, pageNumber }));
+});
 
 server.get('/categories', (request, reply) => {
     const pageNumber = parseInt((request.query as { pageNumber: string }).pageNumber);

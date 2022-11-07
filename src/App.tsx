@@ -10,28 +10,14 @@ type Value = {
     label: string;
 }
 
-const VALUES = [
-    { code: 'one', label: 'one' },
-    { code: 'two', label: 'two' },
-    { code: 'three', label: 'three' }
-];
+async function fetchArticles({ page = 0 }: { page: number }) {
+    const call = await fetch('http://localhost:3000/articles?' + new URLSearchParams({ pageNumber: page.toString() }));
+    return call.json();
+}
 
 async function fetchCategories({ page = 0 }: { page: number }) {
     const call = await fetch('http://localhost:3000/categories?' + new URLSearchParams({ pageNumber: page.toString() }));
     return call.json();
-}
-
-function fakeAPI({ search = '', page = 0 }: { search?: string, page?: number } = {}) {
-    return new Promise<Value[]>(resolve => {
-        setTimeout(() => {
-            resolve(VALUES.map(value => (
-                {
-                    code: `${search}${value.code}${page}`,
-                    label: `${search}${value.label}${page}`
-                }
-            )));
-        }, 2000);
-    });
 }
 
 function mapBothValues(firstValue: string, secondValue: string) {
@@ -44,7 +30,7 @@ function mapBothValues(firstValue: string, secondValue: string) {
 
 type ListContext = {
     firstList: {
-        currentPageNumber: number;
+        nextPage: number;
         values: Value[];
         search: string;
     },
@@ -71,7 +57,7 @@ const listMachine = createMachine<ListContext, ListEvent>({
     type: 'parallel',
     context: {
         firstList: {
-            currentPageNumber: 0,
+            nextPage: 0,
             values: [] as Value[],
             search: '',
         },
@@ -91,14 +77,15 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 loading: {
                     invoke: {
                         src: (context) => {
-                            return fakeAPI({ search: context.firstList.search, page: 0 });
+                            // Then should handle search too
+                            return fetchArticles({ page: 0 });
                         },
                         onDone: {
                             target: 'ready',
                             actions: assign((_, event) => ({
                                 firstList: {
-                                    values: event.data,
-                                    currentPageNumber: 0,
+                                    values: event.data.values,
+                                    nextPage: event.data.nextPage,
                                     search: '',
                                 },
                             })),
@@ -108,15 +95,16 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 loadingMore: {
                     invoke: {
                         src: (context) => {
-                            return fakeAPI({ search: context.firstList.search, page: ++context.firstList.currentPageNumber });
+                            // Then should handle search too
+                            return fetchArticles({ page: context.firstList.nextPage });
                         },
                         onDone: {
                             target: 'ready',
-                            // FIXME bad typing, context not infered
-                            actions: assign((context: any, event) => ({
+                            actions: assign((context, event) => ({
                                 firstList: {
-                                    values: context.firstList.values.concat(event.data),
-                                    currentPageNumber: ++context.firstList.currentPageNumber,
+                                    values: context.firstList.values.concat(event.data.values),
+                                    nextPage: event.data.nextPage,
+                                    search: context.firstList.search,
                                 }
                             })),
                         }
@@ -141,7 +129,7 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 loading: {
                     invoke: {
                         src: (context) => {
-                            // return fakeAPI({ search: context.secondList.search, page: 0 });
+                            // Then should handle search too
                             return fetchCategories({ page: 0 });
                         },
                         onDone: {
@@ -159,17 +147,16 @@ const listMachine = createMachine<ListContext, ListEvent>({
                 loadingMore: {
                     invoke: {
                         src: (context) => {
-                            // return fakeAPI({ search: context.secondList.search, page: ++context.secondList.currentPageNumber });
+                            // Then should handle search too
                             return fetchCategories({ page: context.secondList.nextPage });
                         },
                         onDone: {
                             target: 'ready',
-                            // FIXME bad typing, context not infered
-                            actions: assign((context: any, event) => ({
+                            actions: assign((context, event) => ({
                                 secondList: {
                                     values: context.secondList.values.concat(event.data.values),
-                                    currentPageNumber: ++context.secondList.currentPageNumber,
                                     nextPage: event.data.nextPage,
+                                    search: context.secondList.search,
                                 }
                             })
                             ),
@@ -265,6 +252,7 @@ function App() {
 
     const isLoadingFirstList = state.matches('firstList.loading');
     const isLoadingMoreFirstList = state.matches('firstList.loadingMore');
+    const hasNextPageFirstList = state.context.firstList.nextPage !== undefined;
 
     const isLoadingSecondList = state.matches('secondList.loading');
     const isLoadingMoreSecondList = state.matches('secondList.loadingMore');
@@ -290,7 +278,7 @@ function App() {
                     selectedValue={state.context.firstListSelectedValue}
                     loadMore={() => send('LOAD_MORE_FIRST_LIST')} onSearch={(search) => send('SEARCH_FIRST_LIST', { search })}
                     items={state.context.firstList.values}
-                    hasNextPage={false}
+                    hasNextPage={hasNextPageFirstList}
                     onSelect={(value) => send('SELECT_VALUE_FIRST_LIST', { value: value })} />
                 <List loadingMore={isLoadingMoreSecondList}
                     loading={isLoadingSecondList}
